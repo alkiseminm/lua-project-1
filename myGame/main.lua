@@ -134,17 +134,19 @@ function UpdatePlayerRotation(dt)
     -- Set fastTurn flag and adjust rotation speed if stamina is over 50%
     if staminaFraction > 0.5 and angleDifferenceDegrees > 75 then
         player.fastTurn = true
-        player.rotationSpeed = player.rotationSpeed * 1.3 -- %30 percent faster turning
+        player.rotationSpeed = player.rotationSpeed * 1.5 -- %50 percent faster turning
     else
         player.fastTurn = false
     end
     
-    -- If the difference is very small, just snap to the target to avoid tiny adjustments.
-    if math.abs(diff) < player.rotationSpeed * dt then
+    if love.mouse.isDown(2) then
+        -- If the difference is very small, just snap to the target to avoid tiny adjustments.
+        if math.abs(diff) < player.rotationSpeed * dt then
         player.angle = targetAngle
-    else
+        else
         -- Rotate the player towards the target angle by an amount proportional to dt.
         player.angle = player.angle + player.rotationSpeed * dt * (diff > 0 and 1 or -1)
+        end
     end
 end
 

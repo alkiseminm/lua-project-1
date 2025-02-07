@@ -7,6 +7,10 @@ function love.load()
     player.x = 400
     player.y = 200
     
+    player.angle = 0
+    player.rotationSpeed = 6.0
+    player.fastTurn = false
+    
     player.moveSpeed = 0
     player.walkSpeed = 1
     player.sprintSpeed = 2
@@ -39,7 +43,7 @@ function love.update(dt)
     ManageStamina(dt)
 
     -- Make the player face the mouse (rotate, but don't move with it)
-    UpdatePlayerRotation()
+    UpdatePlayerRotation(dt)
 end
 
 function love.draw()
@@ -100,14 +104,48 @@ function ManageStamina(dt)
     end
 end
 
-function UpdatePlayerRotation()
+function UpdatePlayerRotation(dt)
     -- Get the mouse position
     local mouseX, mouseY = love.mouse.getPosition()
-
-    -- Calculate the angle between the player and the mouse
+    
+    -- Calculate the target angle between the player and the mouse pointer
     local dx = mouseX - player.x
     local dy = mouseY - player.y
-    player.angle = math.atan2(dy, dx)  -- This gives the angle to face the mouse
+    local targetAngle = math.atan2(dy, dx)
+    
+    -- Calculate the shortest angular difference
+    local diff = (targetAngle - player.angle + math.pi) % (2 * math.pi) - math.pi
+
+    -- Convert the angular difference from radians to degrees
+    local angleDifferenceDegrees = math.abs(diff * (180 / math.pi))
+
+    -- Determine rotation speed based on current stamina (as a fraction)
+    local staminaFraction = player.stamina / player.maxStamina
+    if staminaFraction >= 0.8 then
+        player.rotationSpeed = 6.0  -- 80% or above stamina
+    elseif staminaFraction >= 0.2 then
+        player.rotationSpeed = 5.0  -- Between 20% and 80%
+    elseif staminaFraction >= 0.1 then
+        player.rotationSpeed = 4.0  -- Between 10% and 20%
+    else
+        player.rotationSpeed = 3.0  -- Below 10%
+    end
+
+    -- Set fastTurn flag and adjust rotation speed if stamina is over 50%
+    if staminaFraction > 0.5 and angleDifferenceDegrees > 75 then
+        player.fastTurn = true
+        player.rotationSpeed = player.rotationSpeed * 1.3 -- %30 percent faster turning
+    else
+        player.fastTurn = false
+    end
+    
+    -- If the difference is very small, just snap to the target to avoid tiny adjustments.
+    if math.abs(diff) < player.rotationSpeed * dt then
+        player.angle = targetAngle
+    else
+        -- Rotate the player towards the target angle by an amount proportional to dt.
+        player.angle = player.angle + player.rotationSpeed * dt * (diff > 0 and 1 or -1)
+    end
 end
 
 function DrawPlayer()
@@ -126,8 +164,12 @@ function DrawBackground()
 end
 
 function Debug()
-    love.graphics.print(player.state, screenWidth - 100, 10)
-    love.graphics.print(player.stamina, screenWidth - 100, 40)
-    love.graphics.print(player.staminaCooldown, screenWidth - 100, 70)
-    love.graphics.print(player.moveSpeed, screenWidth - 100, 100)
+    love.graphics.print("state: " .. player.state, screenWidth - 120, 10)
+    love.graphics.print("stamina: " .. player.stamina, screenWidth - 130, 40)
+    love.graphics.print("staminaCooldown: " .. player.staminaCooldown, screenWidth - 140, 70)
+    love.graphics.print("moveSpeed: " .. player.moveSpeed, screenWidth - 120, 100)
+    love.graphics.print("rotationSpeed: " .. player.rotationSpeed, screenWidth - 120, 130)
+    
+    local fastTurnStatus = player.fastTurn and "ACTIVE" or "INACTIVE"
+    love.graphics.print("fastTurn: " .. fastTurnStatus, screenWidth - 120, 160)
 end

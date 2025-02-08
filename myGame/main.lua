@@ -22,7 +22,8 @@ function love.load()
     player.staminaCooldown = player.staminaCooldown or 0
     player.wasSprinting = false
 
-    player.state = "standing"
+    player.moveState = "standing"
+    player.aimState = "notaiming"
 
     -- Player sprite
     player.sprite = love.graphics.newImage('sprites/player.png')
@@ -36,6 +37,8 @@ function love.load()
 end
 
 function love.update(dt)
+    UpdateAimState(dt)
+    
     -- Update player controls (keyboard movement)
     PlayerMovement(dt)
 
@@ -63,15 +66,20 @@ function PlayerMovement(dt)
 
     -- LShift sprint (only if moving and stamina is available)
     if not isMoving then
-        player.state = "standing"
+        player.moveState = "standing"
     elseif love.keyboard.isDown("lshift") and isMoving and player.stamina > 0 then 
         -- LShift sprint (only if moving and stamina is available)
         player.moveSpeed = player.sprintSpeed
-        player.state = "sprinting"
+        player.moveState = "sprinting"
     else
         -- Walking state
         player.moveSpeed = player.walkSpeed
-        player.state = "walking"
+        player.moveState = "walking"
+    end
+
+    -- If the player is aiming, reduce movement speed by 50%
+    if player.aimState == "aiming" then
+        player.moveSpeed = player.moveSpeed * 0.5
     end
 
     -- WASD movement
@@ -82,7 +90,7 @@ function PlayerMovement(dt)
 end
 
 function ManageStamina(dt)
-    if player.state == "sprinting" then
+    if player.moveState == "sprinting" then
         -- While sprinting: drain stamina and reset cooldown.
         player.stamina = math.max(player.stamina - player.staminaDrain * dt, 0)
         player.staminaCooldown = 0
@@ -105,48 +113,60 @@ function ManageStamina(dt)
 end
 
 function UpdatePlayerRotation(dt)
-    -- Get the mouse position
-    local mouseX, mouseY = love.mouse.getPosition()
-    
-    -- Calculate the target angle between the player and the mouse pointer
-    local dx = mouseX - player.x
-    local dy = mouseY - player.y
-    local targetAngle = math.atan2(dy, dx)
-    
-    -- Calculate the shortest angular difference
-    local diff = (targetAngle - player.angle + math.pi) % (2 * math.pi) - math.pi
+    if love.mouse.isDown(2) then
+        -- Rotate toward the mouse pointer when right-click is held.
+        local mouseX, mouseY = love.mouse.getPosition()
+        local dx = mouseX - player.x
+        local dy = mouseY - player.y
+        local targetAngle = math.atan2(dy, dx)
+        rotateTowards(targetAngle, dt, true)
+    else
+        -- Otherwise, rotate toward the movement direction (if any)
+        local moveX, moveY = 0, 0
+        if love.keyboard.isDown("w") then moveY = moveY - 1 end
+        if love.keyboard.isDown("s") then moveY = moveY + 1 end
+        if love.keyboard.isDown("a") then moveX = moveX - 1 end
+        if love.keyboard.isDown("d") then moveX = moveX + 1 end
 
-    -- Convert the angular difference from radians to degrees
+        -- Only update rotation if there is some movement.
+        if moveX ~= 0 or moveY ~= 0 then
+            local targetAngle = math.atan2(moveY, moveX)
+            rotateTowards(targetAngle, dt, false)
+        end
+    end
+end
+
+-- Helper function to smoothly rotate the player toward a target angle.
+function rotateTowards(targetAngle, dt, useMouse)
+    -- Calculate the shortest angular difference.
+    local diff = (targetAngle - player.angle + math.pi) % (2 * math.pi) - math.pi
     local angleDifferenceDegrees = math.abs(diff * (180 / math.pi))
 
-    -- Determine rotation speed based on current stamina (as a fraction)
+    -- Determine rotation speed based on current stamina fraction.
     local staminaFraction = player.stamina / player.maxStamina
     if staminaFraction >= 0.8 then
-        player.rotationSpeed = 6.0  -- 80% or above stamina
+        player.rotationSpeed = 6.0
     elseif staminaFraction >= 0.2 then
-        player.rotationSpeed = 5.0  -- Between 20% and 80%
+        player.rotationSpeed = 5.0
     elseif staminaFraction >= 0.1 then
-        player.rotationSpeed = 4.0  -- Between 10% and 20%
+        player.rotationSpeed = 4.0
     else
-        player.rotationSpeed = 3.0  -- Below 10%
+        player.rotationSpeed = 3.0
     end
 
-    -- Set fastTurn flag and adjust rotation speed if stamina is over 50%
-    if staminaFraction > 0.5 and angleDifferenceDegrees > 75 then
+    -- Ensure fast turn only happens when rotating towards the mouse
+    if useMouse and staminaFraction > 0.5 and angleDifferenceDegrees > 75 then
         player.fastTurn = true
-        player.rotationSpeed = player.rotationSpeed * 1.5 -- %50 percent faster turning
+        player.rotationSpeed = player.rotationSpeed * 1.5 -- 50% faster turning.
     else
         player.fastTurn = false
     end
-    
-    if love.mouse.isDown(2) then
-        -- If the difference is very small, just snap to the target to avoid tiny adjustments.
-        if math.abs(diff) < player.rotationSpeed * dt then
+
+    -- If the difference is small, snap to the target; otherwise, rotate incrementally.
+    if math.abs(diff) < player.rotationSpeed * dt then
         player.angle = targetAngle
-        else
-        -- Rotate the player towards the target angle by an amount proportional to dt.
+    else
         player.angle = player.angle + player.rotationSpeed * dt * (diff > 0 and 1 or -1)
-        end
     end
 end
 
@@ -165,13 +185,24 @@ function DrawBackground()
     love.graphics.draw(background, 0, 0)
 end
 
+-- Function to update the player's aim state
+function UpdateAimState(dt)
+    if love.mouse.isDown(2) then
+        player.aimState = "aiming"
+    else
+        player.aimState = "notaiming"
+    end
+end
+
 function Debug()
-    love.graphics.print("state: " .. player.state, screenWidth - 120, 10)
+    love.graphics.print("moveState: " .. player.moveState, screenWidth - 140, 10)
     love.graphics.print("stamina: " .. player.stamina, screenWidth - 130, 40)
-    love.graphics.print("staminaCooldown: " .. player.staminaCooldown, screenWidth - 140, 70)
+    love.graphics.print("staminaCooldown: " .. player.staminaCooldown, screenWidth - 160, 70)
     love.graphics.print("moveSpeed: " .. player.moveSpeed, screenWidth - 120, 100)
     love.graphics.print("rotationSpeed: " .. player.rotationSpeed, screenWidth - 120, 130)
     
     local fastTurnStatus = player.fastTurn and "ACTIVE" or "INACTIVE"
     love.graphics.print("fastTurn: " .. fastTurnStatus, screenWidth - 120, 160)
+    love.graphics.print("aimState: " .. player.aimState, screenWidth - 140, 190)
+    love.graphics.print("staminaRegen: " .. player.staminaRegen, screenWidth - 160, 220)
 end

@@ -8,6 +8,10 @@ function love.load()
     playerScript = require("playerScript")
     playerScript.load()  -- Initialize the player
 
+    -- Load the gun script module.
+    gunScript = require("gunScript")
+    gunScript.load()
+
     -- Load the background sprite.
     background = love.graphics.newImage('sprites/background.png')
     
@@ -17,7 +21,11 @@ function love.load()
 end
 
 function love.update(dt)
+    -- Update the player
     playerScript.update(dt)
+
+    -- Update gun (handles firing and bullet movement).
+    gunScript.update(dt, playerScript.player)
 end
 
 function love.draw()
@@ -26,13 +34,16 @@ function love.draw()
     
     -- Draw the player.
     playerScript.draw()
+
+    -- Draw all active bullets.
+    gunScript.draw()
     
-    -- Values of certain variables
-    Debug()
+    PlayerDebug()
 end
 
-function Debug()
+function PlayerDebug()
 
+    -- Upper-Right corner
     love.graphics.print("stamina: " .. playerScript.player.stamina, screenWidth - 140, 10)
     love.graphics.print("staminaCooldown: " .. playerScript.player.staminaCooldown, screenWidth - 140, 40)
     love.graphics.print("moveSpeed: " .. playerScript.player.moveSpeed, screenWidth - 140, 70)
@@ -44,3 +55,5 @@ function Debug()
     love.graphics.print("fastTurn: " .. fastTurnStatus, screenWidth - 140, 190)
 
 end
+
+-- main.lua

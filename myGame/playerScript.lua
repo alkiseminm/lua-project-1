@@ -175,3 +175,5 @@ function playerScript.UpdateAimState(dt)
 end
 
 return playerScript
+
+-- playerScript.lua
